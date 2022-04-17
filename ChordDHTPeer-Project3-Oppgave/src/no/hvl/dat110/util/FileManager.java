@@ -15,12 +15,11 @@ import java.security.NoSuchAlgorithmException;
 import java.text.DecimalFormat;
 import java.text.NumberFormat;
 import java.util.HashSet;
-import java.util.Random;
 import java.util.Set;
 
+import no.hvl.dat110.middleware.ChordLookup;
 import no.hvl.dat110.middleware.Message;
 import no.hvl.dat110.rpc.interfaces.NodeInterface;
-import no.hvl.dat110.util.Hash;
 
 public class FileManager {
 	
@@ -63,6 +62,15 @@ public class FileManager {
 		// hash the replica
 		
 		// store the hash in the replicafiles array.
+		
+		
+		String replica;
+		BigInteger replicaHash;
+		for (int i = 0; i < numReplicas; i++) {
+			replica = filename + i;
+			replicaHash = Hash.hashOf(replica);
+			replicafiles[i] = replicaHash;
+		}
 
 	}
 	
@@ -90,6 +98,16 @@ public class FileManager {
     	
     	// increment counter
     	
+    	boolean tildelt = true;
+    	
+    	createReplicaFiles();
+    	for (BigInteger replica : replicafiles) {
+    		NodeInterface n = chordnode.findSuccessor(replica);
+    		n.addKey(replica);
+    		n.saveFileContent(filename, replica, bytesOfFile, tildelt);
+    		tildelt = false;
+    		counter++;
+    	}
     		
 		return counter;
     }
@@ -116,6 +134,14 @@ public class FileManager {
 		
 		// save the metadata in the set succinfo.
 		
+		createReplicaFiles();
+		
+		for (BigInteger replica : replicafiles) {
+			NodeInterface s = chordnode.findSuccessor(replica);
+			
+			succinfo.add(s.getFilesMetadata(replica));
+		}
+		
 		this.activeNodesforFile = succinfo;
 		
 		return succinfo;
@@ -136,6 +162,17 @@ public class FileManager {
 		// use the primaryServer boolean variable contained in the Message class to check if it is the primary or not
 		
 		// return the primary
+		
+		try {
+			for (Message m : requestActiveNodesForFile(filename)) {
+				if (m.isPrimaryServer()) {
+					return Util.getProcessStub(m.getNameOfFile(), m.getPort());
+				}
+			}
+		} catch (RemoteException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 		
 		return null; 
 	}
